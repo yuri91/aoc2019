@@ -84,7 +84,7 @@ fn part2(v: &[usize]) -> Result<impl std::fmt::Display> {
     for noun in 0..100 {
         for verb in 0..100 {
             let mut vm = IntcodeVm::new(v.to_owned(), noun, verb);
-            if vm.run().expect("failed to run") == 19690720 {
+            if vm.run()? == 19690720 {
                 return Ok(100*noun + verb);
             }
         }
