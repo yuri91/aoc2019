@@ -1,4 +1,4 @@
-type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
+use anyhow::Result;
 
 fn parse() -> Result<Vec<i32>> {
     std::fs::read_to_string("input")?
