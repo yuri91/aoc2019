@@ -52,9 +52,7 @@ pub enum VmState {
 }
 
 impl Vm {
-    pub fn new(mut memory: Vec<i32>, arg1: i32, arg2: i32) -> Vm {
-        memory[1] = arg1;
-        memory[2] = arg2;
+    pub fn new(memory: Vec<i32>) -> Vm {
         Vm {
             memory,
             pc: 0,
@@ -110,11 +108,11 @@ impl Vm {
         };
         Ok(self.state)
 }
-    pub fn run(&mut self) -> Result<i32> {
+    pub fn run(&mut self) -> Result<()> {
         loop {
             match self.step()? {
                 VmState::Running => {},
-                VmState::Stopped => {return self.read_at(0);},
+                VmState::Stopped => {return Ok(());},
                 VmState::WaitingForInput => {return Err(VMError::NoMoreInput);},
             }
         }
@@ -129,11 +127,11 @@ impl Vm {
         }
     }
 
-    fn read_at(&self, addr: i32) -> Result<i32> {
+    pub fn read_at(&self, addr: i32) -> Result<i32> {
         let idx = usize::try_from(addr).map_err(|_| VMError::InvalidAddress{addr: addr})?;
         self.memory.get(idx).map(|i| *i).ok_or_else(|| VMError::InvalidAddress{addr: addr})
     }
-    fn write_at(&mut self, addr: i32, val: i32) -> Result<()> {
+    pub fn write_at(&mut self, addr: i32, val: i32) -> Result<()> {
         let idx = usize::try_from(addr).map_err(|_| VMError::InvalidAddress{addr: addr})?;
         let v = self.memory.get_mut(idx).ok_or_else(|| VMError::InvalidAddress{addr: addr})?;
         *v = val;

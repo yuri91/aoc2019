@@ -11,15 +11,21 @@ fn parse() -> Result<Vec<i32>> {
 }
 
 fn part1(v: &[i32]) -> Result<impl std::fmt::Display> {
-    let mut vm = intcode::Vm::new(v.to_owned(), 12, 2);
-    Ok(vm.run()?)
+    let mut vm = intcode::Vm::new(v.to_owned());
+    vm.write_at(1, 2)?;
+    vm.write_at(2, 12)?;
+    vm.run()?;
+    Ok(vm.read_at(0)?)
 }
 
 fn part2(v: &[i32]) -> Result<impl std::fmt::Display> {
     for noun in 0..100 {
         for verb in 0..100 {
-            let mut vm = intcode::Vm::new(v.to_owned(), noun, verb);
-            if vm.run()? == 19690720 {
+            let mut vm = intcode::Vm::new(v.to_owned());
+            vm.write_at(1, noun)?;
+            vm.write_at(2, verb)?;
+            vm.run()?;
+            if vm.read_at(0)? == 19690720 {
                 return Ok(100*noun + verb);
             }
         }
