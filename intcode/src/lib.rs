@@ -1,43 +1,40 @@
 use thiserror::Error;
+use std::convert::TryFrom;
 
 #[derive(Error, Debug)]
 pub enum VMError {
-    #[error("The opcode `{opcode}` at offset {offset} is invalid")]
+    #[error("The opcode `{opcode}` at address {addr} is invalid")]
     InvalidOpcode {
         opcode: i32,
-        offset: usize,
+        addr: i32,
+    },
+    #[error("Invalid address `{addr}`")]
+    InvalidAddress {
+        addr: i32,
     }
 }
 
 type Result<T> = std::result::Result<T, VMError>;
 
-
-enum Instruction {
-    Add(i32, i32, i32),
-    Mul(i32, i32, i32),
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Opcode {
+    Add,
+    Mul,
     End,
-    Invalid(i32),
-}
-impl Instruction {
-    fn fetch(mem: &[i32]) -> (Instruction, usize) {
-        match mem[0] {
-            1  => (Instruction::Add(mem[1], mem[2], mem[3]), 4),
-            2  => (Instruction::Mul(mem[1], mem[2], mem[3]), 4),
-            99 => (Instruction::End, 1),
-            i  => (Instruction::Invalid(i), 0),
-        }
-    }
 }
 
 pub struct Vm {
     memory: Vec<i32>,
-    pc: usize,
+    pc: i32,
+    state: VmState,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum VmState {
     Running,
     Stopped,
 }
+
 impl Vm {
     pub fn new(mut memory: Vec<i32>, arg1: i32, arg2: i32) -> Vm {
         memory[1] = arg1;
@@ -45,36 +42,71 @@ impl Vm {
         Vm {
             memory,
             pc: 0,
+            state: VmState::Running,
         }
     }
     pub fn step(&mut self) -> Result<VmState> {
-        let (inst, inc) = Instruction::fetch(&self.memory[self.pc..]);
-        match inst {
-            Instruction::Add(arg1, arg2, res) => {
-                self.memory[res as usize] = self.memory[arg1 as usize] + self.memory[arg2 as usize];
+        let op = self.read_opcode()?;
+        match op {
+            Opcode::Add => {
+                let arg1 = self.fetch_param()?;
+                let arg1 = self.read_at(arg1)?;
+
+                let arg2 = self.fetch_param()?;
+                let arg2 = self.read_at(arg2)?;
+
+                let arg3 = self.fetch_param()?;
+                let res = arg1 + arg2;
+                self.write_at(arg3, res)?;
             },
-            Instruction::Mul(arg1, arg2, res) => {
-                self.memory[res as usize] = self.memory[arg1 as usize] * self.memory[arg2 as usize];
+            Opcode::Mul => {
+                let arg1 = self.fetch_param()?;
+                let arg1 = self.read_at(arg1)?;
+
+                let arg2 = self.fetch_param()?;
+                let arg2 = self.read_at(arg2)?;
+
+                let arg3 = self.fetch_param()?;
+                let res = arg1 * arg2;
+                self.write_at(arg3, res)?;
             },
-            Instruction::End => {
-                return Ok(VmState::Stopped);
-            },
-            Instruction::Invalid(o) => {
-                return Err(VMError::InvalidOpcode {
-                    opcode: o,
-                    offset: self.pc,
-                });
-            },
+            Opcode::End => {
+                self.state = VmState::Stopped;
+            }
         };
-        self.pc += inc;
-        Ok(VmState::Running)
+        Ok(self.state)
 }
     pub fn run(&mut self) -> Result<i32> {
         loop {
             match self.step()? {
                 VmState::Running => {},
-                VmState::Stopped => {return Ok(self.memory[0]);},
+                VmState::Stopped => {return self.read_at(0);},
             }
         }
+    }
+    fn read_at(&self, addr: i32) -> Result<i32> {
+        let idx = usize::try_from(addr).map_err(|_| VMError::InvalidAddress{addr: addr})?;
+        self.memory.get(idx).map(|i| *i).ok_or_else(|| VMError::InvalidAddress{addr: addr})
+    }
+    fn write_at(&mut self, addr: i32, val: i32) -> Result<()> {
+        let idx = usize::try_from(addr).map_err(|_| VMError::InvalidAddress{addr: addr})?;
+        let v = self.memory.get_mut(idx).ok_or_else(|| VMError::InvalidAddress{addr: addr})?;
+        *v = val;
+        Ok(())
+    }
+    fn read_opcode(&mut self) -> Result<Opcode> {
+        let i = self.read_at(self.pc)?;
+        self.pc += 1;
+        Ok(match i {
+            1  => Opcode::Add,
+            2  => Opcode::Mul,
+            99 => Opcode::End,
+            o  => return Err(VMError::InvalidOpcode{opcode: o, addr: self.pc}),
+        })
+    }
+    fn fetch_param(&mut self) -> Result<i32> {
+        let p = self.read_at(self.pc)?;
+        self.pc += 1;
+        Ok(p)
     }
 }
