@@ -122,6 +122,16 @@ impl Vm {
             }
         }
     }
+    pub fn get_outputs(&mut self) -> impl Iterator<Item=i32> + '_ {
+        self.outputs.drain(..)
+    }
+
+    pub fn add_inputs(&mut self, inputs: &[i32]) {
+        for i in inputs {
+            self.inputs.push_back(*i);
+        }
+    }
+
     fn read_at(&self, addr: i32) -> Result<i32> {
         let idx = usize::try_from(addr).map_err(|_| VMError::InvalidAddress{addr: addr})?;
         self.memory.get(idx).map(|i| *i).ok_or_else(|| VMError::InvalidAddress{addr: addr})
