@@ -1,5 +1,6 @@
 use thiserror::Error;
 use std::convert::TryFrom;
+use std::collections::VecDeque;
 
 #[derive(Error, Debug)]
 pub enum VMError {
@@ -11,7 +12,11 @@ pub enum VMError {
     #[error("Invalid address `{addr}`")]
     InvalidAddress {
         addr: i32,
-    }
+    },
+    #[error("The VM is stopped")]
+    Stopped,
+    #[error("The VM is waiting for input, but none is available")]
+    NoMoreInput,
 }
 
 type Result<T> = std::result::Result<T, VMError>;
@@ -20,6 +25,8 @@ type Result<T> = std::result::Result<T, VMError>;
 enum Opcode {
     Add,
     Mul,
+    Input,
+    Output,
     End,
 }
 
@@ -27,12 +34,15 @@ pub struct Vm {
     memory: Vec<i32>,
     pc: i32,
     state: VmState,
+    inputs: VecDeque<i32>,
+    outputs: VecDeque<i32>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum VmState {
     Running,
     Stopped,
+    WaitingForInput,
 }
 
 impl Vm {
@@ -43,9 +53,23 @@ impl Vm {
             memory,
             pc: 0,
             state: VmState::Running,
+            inputs: VecDeque::new(),
+            outputs: VecDeque::new(),
         }
     }
     pub fn step(&mut self) -> Result<VmState> {
+        match self.state {
+            VmState::Stopped => {
+                return Err(VMError::Stopped);
+            },
+            VmState::WaitingForInput => {
+                if self.inputs.is_empty() {
+                    return Ok(VmState::WaitingForInput);
+                }
+                self.state = VmState::Running;
+            },
+            VmState::Running => {},
+        }
         let op = self.read_opcode()?;
         match op {
             Opcode::Add => {
@@ -70,6 +94,19 @@ impl Vm {
                 let res = arg1 * arg2;
                 self.write_at(arg3, res)?;
             },
+            Opcode::Input => {
+                if let Some(i) = self.inputs.pop_back() {
+                    let arg1 = self.fetch_param()?;
+                    self.write_at(arg1, i)?;
+                } else {
+                    self.state = VmState::WaitingForInput;
+                }
+            },
+            Opcode::Output => {
+                let arg1 = self.fetch_param()?;
+                let o = self.read_at(arg1)?;
+                self.outputs.push_back(o);
+            },
             Opcode::End => {
                 self.state = VmState::Stopped;
             }
@@ -81,6 +118,7 @@ impl Vm {
             match self.step()? {
                 VmState::Running => {},
                 VmState::Stopped => {return self.read_at(0);},
+                VmState::WaitingForInput => {return Err(VMError::NoMoreInput);},
             }
         }
     }
@@ -100,6 +138,8 @@ impl Vm {
         Ok(match i {
             1  => Opcode::Add,
             2  => Opcode::Mul,
+            3  => Opcode::Input,
+            4  => Opcode::Output,
             99 => Opcode::End,
             o  => return Err(VMError::InvalidOpcode{opcode: o, addr: self.pc}),
         })
