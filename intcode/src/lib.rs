@@ -22,11 +22,17 @@ pub enum VMError {
 type Result<T> = std::result::Result<T, VMError>;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
+enum ParameterMode {
+    Immediate,
+    Position,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
 enum Opcode {
-    Add,
-    Mul,
+    Add(ParameterMode, ParameterMode),
+    Mul(ParameterMode, ParameterMode),
     Input,
-    Output,
+    Output(ParameterMode),
     End,
 }
 
@@ -72,40 +78,31 @@ impl Vm {
         }
         let op = self.read_opcode()?;
         match op {
-            Opcode::Add => {
-                let arg1 = self.fetch_param()?;
-                let arg1 = self.read_at(arg1)?;
-
-                let arg2 = self.fetch_param()?;
-                let arg2 = self.read_at(arg2)?;
-
-                let arg3 = self.fetch_param()?;
+            Opcode::Add(par1, par2) => {
+                let arg1 = self.fetch_param(par1)?;
+                let arg2 = self.fetch_param(par2)?;
+                let arg3 = self.fetch_param(ParameterMode::Immediate)?;
                 let res = arg1 + arg2;
                 self.write_at(arg3, res)?;
             },
-            Opcode::Mul => {
-                let arg1 = self.fetch_param()?;
-                let arg1 = self.read_at(arg1)?;
-
-                let arg2 = self.fetch_param()?;
-                let arg2 = self.read_at(arg2)?;
-
-                let arg3 = self.fetch_param()?;
+            Opcode::Mul(par1, par2) => {
+                let arg1 = self.fetch_param(par1)?;
+                let arg2 = self.fetch_param(par2)?;
+                let arg3 = self.fetch_param(ParameterMode::Immediate)?;
                 let res = arg1 * arg2;
                 self.write_at(arg3, res)?;
             },
             Opcode::Input => {
                 if let Some(i) = self.inputs.pop_back() {
-                    let arg1 = self.fetch_param()?;
+                    let arg1 = self.fetch_param(ParameterMode::Immediate)?;
                     self.write_at(arg1, i)?;
                 } else {
                     self.state = VmState::WaitingForInput;
                 }
             },
-            Opcode::Output => {
-                let arg1 = self.fetch_param()?;
-                let o = self.read_at(arg1)?;
-                self.outputs.push_back(o);
+            Opcode::Output(par1) => {
+                let arg1 = self.fetch_param(par1)?;
+                self.outputs.push_back(arg1);
             },
             Opcode::End => {
                 self.state = VmState::Stopped;
@@ -145,18 +142,33 @@ impl Vm {
     fn read_opcode(&mut self) -> Result<Opcode> {
         let i = self.read_at(self.pc)?;
         self.pc += 1;
-        Ok(match i {
-            1  => Opcode::Add,
-            2  => Opcode::Mul,
+        Ok(match i % 100 {
+            1  => {
+                let mode1 = if (i / 100) % 10 == 0 { ParameterMode::Position } else { ParameterMode::Immediate };
+                let mode2 = if (i / 1000) % 10 == 0 { ParameterMode::Position } else { ParameterMode::Immediate };
+                Opcode::Add(mode1, mode2)
+            },
+            2  => {
+                let mode1 = if (i / 100) % 10 == 0 { ParameterMode::Position } else { ParameterMode::Immediate };
+                let mode2 = if (i / 1000) % 10 == 0 { ParameterMode::Position } else { ParameterMode::Immediate };
+                Opcode::Mul(mode1, mode2)
+            },
             3  => Opcode::Input,
-            4  => Opcode::Output,
+            4  => {
+                let mode1 = if (i / 100) % 10 == 0 { ParameterMode::Position } else { ParameterMode::Immediate };
+                Opcode::Output(mode1)
+            },
             99 => Opcode::End,
             o  => return Err(VMError::InvalidOpcode{opcode: o, addr: self.pc}),
         })
     }
-    fn fetch_param(&mut self) -> Result<i32> {
+    fn fetch_param(&mut self, mode: ParameterMode) -> Result<i32> {
         let p = self.read_at(self.pc)?;
         self.pc += 1;
-        Ok(p)
+        if mode == ParameterMode::Immediate {
+            Ok(p)
+        } else {
+            self.read_at(p)
+        }
     }
 }
