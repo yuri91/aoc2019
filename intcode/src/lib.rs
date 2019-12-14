@@ -102,6 +102,7 @@ impl Vm {
                     let arg1 = self.fetch_param(ParameterMode::Immediate)?;
                     self.write_at(arg1, i)?;
                 } else {
+                    self.pc -= 1;
                     self.state = VmState::WaitingForInput;
                 }
             },
