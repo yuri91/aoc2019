@@ -21,18 +21,22 @@ pub enum VMError {
 
 type Result<T> = std::result::Result<T, VMError>;
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum ParameterMode {
     Immediate,
     Position,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum Opcode {
     Add(ParameterMode, ParameterMode),
     Mul(ParameterMode, ParameterMode),
     Input,
     Output(ParameterMode),
+    JumpIfTrue(ParameterMode, ParameterMode),
+    JumpIfFalse(ParameterMode, ParameterMode),
+    LessThan(ParameterMode, ParameterMode),
+    Equals(ParameterMode, ParameterMode),
     End,
 }
 
@@ -102,6 +106,34 @@ impl Vm {
                 let arg1 = self.fetch_param(par1)?;
                 self.outputs.push_back(arg1);
             },
+            Opcode::JumpIfTrue(par1, par2) => {
+                let arg1 = self.fetch_param(par1)?;
+                let arg2 = self.fetch_param(par2)?;
+                if arg1 != 0 {
+                    self.pc = arg2;
+                }
+            },
+            Opcode::JumpIfFalse(par1, par2) => {
+                let arg1 = self.fetch_param(par1)?;
+                let arg2 = self.fetch_param(par2)?;
+                if arg1 == 0 {
+                    self.pc = arg2;
+                }
+            },
+            Opcode::LessThan(par1, par2) => {
+                let arg1 = self.fetch_param(par1)?;
+                let arg2 = self.fetch_param(par2)?;
+                let arg3 = self.fetch_param(ParameterMode::Immediate)?;
+                let res = (arg1 < arg2) as i32;
+                self.write_at(arg3, res)?;
+            },
+            Opcode::Equals(par1, par2) => {
+                let arg1 = self.fetch_param(par1)?;
+                let arg2 = self.fetch_param(par2)?;
+                let arg3 = self.fetch_param(ParameterMode::Immediate)?;
+                let res = (arg1 == arg2) as i32;
+                self.write_at(arg3, res)?;
+            },
             Opcode::End => {
                 self.state = VmState::Stopped;
             }
@@ -155,6 +187,26 @@ impl Vm {
             4  => {
                 let mode1 = if (i / 100) % 10 == 0 { ParameterMode::Position } else { ParameterMode::Immediate };
                 Opcode::Output(mode1)
+            },
+            5  => {
+                let mode1 = if (i / 100) % 10 == 0 { ParameterMode::Position } else { ParameterMode::Immediate };
+                let mode2 = if (i / 1000) % 10 == 0 { ParameterMode::Position } else { ParameterMode::Immediate };
+                Opcode::JumpIfTrue(mode1, mode2)
+            },
+            6  => {
+                let mode1 = if (i / 100) % 10 == 0 { ParameterMode::Position } else { ParameterMode::Immediate };
+                let mode2 = if (i / 1000) % 10 == 0 { ParameterMode::Position } else { ParameterMode::Immediate };
+                Opcode::JumpIfFalse(mode1, mode2)
+            },
+            7  => {
+                let mode1 = if (i / 100) % 10 == 0 { ParameterMode::Position } else { ParameterMode::Immediate };
+                let mode2 = if (i / 1000) % 10 == 0 { ParameterMode::Position } else { ParameterMode::Immediate };
+                Opcode::LessThan(mode1, mode2)
+            },
+            8  => {
+                let mode1 = if (i / 100) % 10 == 0 { ParameterMode::Position } else { ParameterMode::Immediate };
+                let mode2 = if (i / 1000) % 10 == 0 { ParameterMode::Position } else { ParameterMode::Immediate };
+                Opcode::Equals(mode1, mode2)
             },
             99 => Opcode::End,
             o  => return Err(VMError::InvalidOpcode{opcode: o, addr: self.pc}),
