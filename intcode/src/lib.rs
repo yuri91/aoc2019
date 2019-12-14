@@ -153,6 +153,11 @@ impl Vm {
             }
         }
     }
+
+    pub fn is_running(&self) -> bool {
+        self.state != VmState::Stopped
+    }
+
     pub fn get_outputs(&mut self) -> impl Iterator<Item=i32> + '_ {
         self.outputs.drain(..)
     }
