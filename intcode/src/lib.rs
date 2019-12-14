@@ -1,6 +1,7 @@
 use thiserror::Error;
 use std::convert::TryFrom;
 use std::collections::VecDeque;
+use log::debug;
 
 #[derive(Error, Debug)]
 pub enum VMError {
@@ -66,6 +67,7 @@ impl Vm {
         }
     }
     pub fn step(&mut self) -> Result<VmState> {
+        debug!("[{}] stepping", self.pc);
         match self.state {
             VmState::Stopped => {
                 return Err(VMError::Stopped);
@@ -79,6 +81,7 @@ impl Vm {
             VmState::Running => {},
         }
         let op = self.read_opcode()?;
+        debug!("[{}] executing {:?}", self.pc, op);
         match op {
             Opcode::Add(par1, par2) => {
                 let arg1 = self.fetch_param(par1)?;
@@ -95,7 +98,7 @@ impl Vm {
                 self.write_at(arg3, res)?;
             },
             Opcode::Input => {
-                if let Some(i) = self.inputs.pop_back() {
+                if let Some(i) = self.inputs.pop_front() {
                     let arg1 = self.fetch_param(ParameterMode::Immediate)?;
                     self.write_at(arg1, i)?;
                 } else {
@@ -161,15 +164,23 @@ impl Vm {
 
     pub fn read_at(&self, addr: i32) -> Result<i32> {
         let idx = usize::try_from(addr).map_err(|_| VMError::InvalidAddress{addr: addr})?;
-        self.memory.get(idx).map(|i| *i).ok_or_else(|| VMError::InvalidAddress{addr: addr})
+        if let Some(i) = self.memory.get(idx) {
+            debug!("[{}] reading [{}]={}", self.pc, addr, i);
+            Ok(*i)
+        } else {
+            debug!("[{}] reading [{}]=invalid", self.pc, addr);
+            Err(VMError::InvalidAddress{addr: addr})
+        }
     }
     pub fn write_at(&mut self, addr: i32, val: i32) -> Result<()> {
+        debug!("[{}] writing [{}]={}", self.pc, addr, val);
         let idx = usize::try_from(addr).map_err(|_| VMError::InvalidAddress{addr: addr})?;
         let v = self.memory.get_mut(idx).ok_or_else(|| VMError::InvalidAddress{addr: addr})?;
         *v = val;
         Ok(())
     }
     fn read_opcode(&mut self) -> Result<Opcode> {
+        debug!("[{}] reading opcode",self.pc);
         let i = self.read_at(self.pc)?;
         self.pc += 1;
         Ok(match i % 100 {
@@ -209,10 +220,11 @@ impl Vm {
                 Opcode::Equals(mode1, mode2)
             },
             99 => Opcode::End,
-            o  => return Err(VMError::InvalidOpcode{opcode: o, addr: self.pc}),
+            o  => return Err(VMError::InvalidOpcode{opcode: o, addr: self.pc-1}),
         })
     }
     fn fetch_param(&mut self, mode: ParameterMode) -> Result<i32> {
+        debug!("[{}] fetching {:?}", self.pc, mode);
         let p = self.read_at(self.pc)?;
         self.pc += 1;
         if mode == ParameterMode::Immediate {
