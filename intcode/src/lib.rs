@@ -185,44 +185,51 @@ impl Vm {
         *v = val;
         Ok(())
     }
+    fn decode_mode(opcode: i32, param: u32) -> Option<ParameterMode> {
+        match (opcode / (10i32.pow(param+2))) % 10 {
+            0 => { Some(ParameterMode::Position) },
+            1 => { Some(ParameterMode::Immediate) },
+            _ => { None },
+        }
+    }
     fn read_opcode(&mut self) -> Result<Opcode> {
         debug!("[{}] reading opcode",self.pc);
         let i = self.read_at(self.pc)?;
         self.pc += 1;
         Ok(match i % 100 {
             1  => {
-                let mode1 = if (i / 100) % 10 == 0 { ParameterMode::Position } else { ParameterMode::Immediate };
-                let mode2 = if (i / 1000) % 10 == 0 { ParameterMode::Position } else { ParameterMode::Immediate };
+                let mode1 = Self::decode_mode(i, 0).ok_or_else(|| VMError::InvalidOpcode { opcode: i, addr: self.pc-1 })?;
+                let mode2 = Self::decode_mode(i, 1).ok_or_else(|| VMError::InvalidOpcode { opcode: i, addr: self.pc-1 })?;
                 Opcode::Add(mode1, mode2)
             },
             2  => {
-                let mode1 = if (i / 100) % 10 == 0 { ParameterMode::Position } else { ParameterMode::Immediate };
-                let mode2 = if (i / 1000) % 10 == 0 { ParameterMode::Position } else { ParameterMode::Immediate };
+                let mode1 = Self::decode_mode(i, 0).ok_or_else(|| VMError::InvalidOpcode { opcode: i, addr: self.pc-1 })?;
+                let mode2 = Self::decode_mode(i, 1).ok_or_else(|| VMError::InvalidOpcode { opcode: i, addr: self.pc-1 })?;
                 Opcode::Mul(mode1, mode2)
             },
             3  => Opcode::Input,
             4  => {
-                let mode1 = if (i / 100) % 10 == 0 { ParameterMode::Position } else { ParameterMode::Immediate };
+                let mode1 = Self::decode_mode(i, 0).ok_or_else(|| VMError::InvalidOpcode { opcode: i, addr: self.pc-1 })?;
                 Opcode::Output(mode1)
             },
             5  => {
-                let mode1 = if (i / 100) % 10 == 0 { ParameterMode::Position } else { ParameterMode::Immediate };
-                let mode2 = if (i / 1000) % 10 == 0 { ParameterMode::Position } else { ParameterMode::Immediate };
+                let mode1 = Self::decode_mode(i, 0).ok_or_else(|| VMError::InvalidOpcode { opcode: i, addr: self.pc-1 })?;
+                let mode2 = Self::decode_mode(i, 1).ok_or_else(|| VMError::InvalidOpcode { opcode: i, addr: self.pc-1 })?;
                 Opcode::JumpIfTrue(mode1, mode2)
             },
             6  => {
-                let mode1 = if (i / 100) % 10 == 0 { ParameterMode::Position } else { ParameterMode::Immediate };
-                let mode2 = if (i / 1000) % 10 == 0 { ParameterMode::Position } else { ParameterMode::Immediate };
+                let mode1 = Self::decode_mode(i, 0).ok_or_else(|| VMError::InvalidOpcode { opcode: i, addr: self.pc-1 })?;
+                let mode2 = Self::decode_mode(i, 1).ok_or_else(|| VMError::InvalidOpcode { opcode: i, addr: self.pc-1 })?;
                 Opcode::JumpIfFalse(mode1, mode2)
             },
             7  => {
-                let mode1 = if (i / 100) % 10 == 0 { ParameterMode::Position } else { ParameterMode::Immediate };
-                let mode2 = if (i / 1000) % 10 == 0 { ParameterMode::Position } else { ParameterMode::Immediate };
+                let mode1 = Self::decode_mode(i, 0).ok_or_else(|| VMError::InvalidOpcode { opcode: i, addr: self.pc-1 })?;
+                let mode2 = Self::decode_mode(i, 1).ok_or_else(|| VMError::InvalidOpcode { opcode: i, addr: self.pc-1 })?;
                 Opcode::LessThan(mode1, mode2)
             },
             8  => {
-                let mode1 = if (i / 100) % 10 == 0 { ParameterMode::Position } else { ParameterMode::Immediate };
-                let mode2 = if (i / 1000) % 10 == 0 { ParameterMode::Position } else { ParameterMode::Immediate };
+                let mode1 = Self::decode_mode(i, 0).ok_or_else(|| VMError::InvalidOpcode { opcode: i, addr: self.pc-1 })?;
+                let mode2 = Self::decode_mode(i, 1).ok_or_else(|| VMError::InvalidOpcode { opcode: i, addr: self.pc-1 })?;
                 Opcode::Equals(mode1, mode2)
             },
             99 => Opcode::End,
@@ -233,10 +240,13 @@ impl Vm {
         debug!("[{}] fetching {:?}", self.pc, mode);
         let p = self.read_at(self.pc)?;
         self.pc += 1;
-        if mode == ParameterMode::Immediate {
-            Ok(p)
-        } else {
-            self.read_at(p)
+        match mode {
+            ParameterMode::Immediate => {
+                Ok(p)
+            },
+            ParameterMode::Position => {
+                self.read_at(p)
+            },
         }
     }
 }
