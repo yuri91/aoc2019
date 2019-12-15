@@ -3,7 +3,7 @@ use anyhow::anyhow;
 use permutohedron::heap_recursive;
 
 
-fn parse() -> Result<Vec<i32>> {
+fn parse() -> Result<Vec<i64>> {
     std::fs::read_to_string("input")?
         .trim()
         .split(',')
@@ -11,7 +11,7 @@ fn parse() -> Result<Vec<i32>> {
         .collect()
 }
 
-fn run_amps(prog: Vec<i32>, params: Vec<i32>) -> Result<i32> {
+fn run_amps(prog: Vec<i64>, params: Vec<i64>) -> Result<i64> {
     let mut val = 0;
     for p in params {
         let mut vm = intcode::Vm::new(prog.clone());
@@ -21,7 +21,7 @@ fn run_amps(prog: Vec<i32>, params: Vec<i32>) -> Result<i32> {
     };
     Ok(val)
 }
-fn part1(v: Vec<i32>) -> Result<impl std::fmt::Display> {
+fn part1(v: Vec<i64>) -> Result<impl std::fmt::Display> {
     let mut data = [0, 1, 2, 3, 4];
     let mut perms = Vec::new();
     heap_recursive(&mut data, |perm| {
@@ -31,7 +31,7 @@ fn part1(v: Vec<i32>) -> Result<impl std::fmt::Display> {
     Ok(results.into_iter().max().unwrap())
 }
 
-fn run_amps_loop(prog: Vec<i32>, params: Vec<i32>) -> Result<i32> {
+fn run_amps_loop(prog: Vec<i64>, params: Vec<i64>) -> Result<i64> {
     let mut amps: Vec<_> = params.into_iter().map(|p| {
         let mut vm = intcode::Vm::new(prog.clone());
         vm.add_inputs(&[p]);
@@ -41,7 +41,7 @@ fn run_amps_loop(prog: Vec<i32>, params: Vec<i32>) -> Result<i32> {
     let mut running = true;
     while running {
         running = false;
-        for i in 0..5i32 {
+        for i in 0..5i64 {
             if !amps[i as usize].is_running() {
                 continue;
             }
@@ -59,7 +59,7 @@ fn run_amps_loop(prog: Vec<i32>, params: Vec<i32>) -> Result<i32> {
     let val = amps[4].get_outputs().next().ok_or_else(|| anyhow!("no output"))?;
     Ok(val)
 }
-fn part2(v: Vec<i32>) -> Result<impl std::fmt::Display> {
+fn part2(v: Vec<i64>) -> Result<impl std::fmt::Display> {
     let mut data = [5, 6, 7, 8, 9];
     let mut perms = Vec::new();
     heap_recursive(&mut data, |perm| {
