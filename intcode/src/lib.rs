@@ -31,14 +31,14 @@ enum ParameterMode {
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum Opcode {
-    Add(ParameterMode, ParameterMode),
-    Mul(ParameterMode, ParameterMode),
-    Input,
+    Add(ParameterMode, ParameterMode, ParameterMode),
+    Mul(ParameterMode, ParameterMode, ParameterMode),
+    Input(ParameterMode),
     Output(ParameterMode),
     JumpIfTrue(ParameterMode, ParameterMode),
     JumpIfFalse(ParameterMode, ParameterMode),
-    LessThan(ParameterMode, ParameterMode),
-    Equals(ParameterMode, ParameterMode),
+    LessThan(ParameterMode, ParameterMode, ParameterMode),
+    Equals(ParameterMode, ParameterMode, ParameterMode),
     RelativeBaseOffset(ParameterMode),
     End,
 }
@@ -87,63 +87,59 @@ impl Vm {
         let op = self.read_opcode()?;
         debug!("[{}] executing {:?}", self.pc, op);
         match op {
-            Opcode::Add(par1, par2) => {
-                let arg1 = self.fetch_param(par1)?;
-                let arg2 = self.fetch_param(par2)?;
-                let arg3 = self.fetch_param(ParameterMode::Immediate)?;
-                let res = arg1 + arg2;
-                self.write_at(arg3, res)?;
+            Opcode::Add(par1, par2, par3) => {
+                let arg1 = *self.fetch_param(par1)?;
+                let arg2 = *self.fetch_param(par2)?;
+                let arg3 = self.fetch_param(par3)?;
+                *arg3 = arg1 + arg2;
             },
-            Opcode::Mul(par1, par2) => {
-                let arg1 = self.fetch_param(par1)?;
-                let arg2 = self.fetch_param(par2)?;
-                let arg3 = self.fetch_param(ParameterMode::Immediate)?;
-                let res = arg1 * arg2;
-                self.write_at(arg3, res)?;
+            Opcode::Mul(par1, par2, par3) => {
+                let arg1 = *self.fetch_param(par1)?;
+                let arg2 = *self.fetch_param(par2)?;
+                let arg3 = self.fetch_param(par3)?;
+                *arg3 = arg1 * arg2;
             },
-            Opcode::Input => {
+            Opcode::Input(par1) => {
                 if let Some(i) = self.inputs.pop_front() {
-                    let arg1 = self.fetch_param(ParameterMode::Immediate)?;
-                    self.write_at(arg1, i)?;
+                    let arg1 = self.fetch_param(par1)?;
+                    *arg1 = i;
                 } else {
                     self.pc -= 1;
                     self.state = VmState::WaitingForInput;
                 }
             },
             Opcode::Output(par1) => {
-                let arg1 = self.fetch_param(par1)?;
+                let arg1 = *self.fetch_param(par1)?;
                 self.outputs.push_back(arg1);
             },
             Opcode::JumpIfTrue(par1, par2) => {
-                let arg1 = self.fetch_param(par1)?;
+                let arg1 = *self.fetch_param(par1)?;
                 let arg2 = self.fetch_param(par2)?;
                 if arg1 != 0 {
-                    self.pc = arg2;
+                    self.pc = *arg2;
                 }
             },
             Opcode::JumpIfFalse(par1, par2) => {
-                let arg1 = self.fetch_param(par1)?;
+                let arg1 = *self.fetch_param(par1)?;
                 let arg2 = self.fetch_param(par2)?;
                 if arg1 == 0 {
-                    self.pc = arg2;
+                    self.pc = *arg2;
                 }
             },
-            Opcode::LessThan(par1, par2) => {
-                let arg1 = self.fetch_param(par1)?;
-                let arg2 = self.fetch_param(par2)?;
-                let arg3 = self.fetch_param(ParameterMode::Immediate)?;
-                let res = (arg1 < arg2) as i64;
-                self.write_at(arg3, res)?;
+            Opcode::LessThan(par1, par2, par3) => {
+                let arg1 = *self.fetch_param(par1)?;
+                let arg2 = *self.fetch_param(par2)?;
+                let arg3 = self.fetch_param(par3)?;
+                *arg3 = (arg1 < arg2) as i64;
             },
-            Opcode::Equals(par1, par2) => {
-                let arg1 = self.fetch_param(par1)?;
-                let arg2 = self.fetch_param(par2)?;
-                let arg3 = self.fetch_param(ParameterMode::Immediate)?;
-                let res = (arg1 == arg2) as i64;
-                self.write_at(arg3, res)?;
+            Opcode::Equals(par1, par2, par3) => {
+                let arg1 = *self.fetch_param(par1)?;
+                let arg2 = *self.fetch_param(par2)?;
+                let arg3 = self.fetch_param(par3)?;
+                *arg3 = (arg1 == arg2) as i64;
             },
             Opcode::RelativeBaseOffset(par1) => {
-                let arg1 = self.fetch_param(par1)?;
+                let arg1 = *self.fetch_param(par1)?;
                 self.rb += arg1;
             },
             Opcode::End => {
@@ -176,25 +172,13 @@ impl Vm {
         }
     }
 
-    pub fn read_at(&self, addr: i64) -> Result<i64> {
+    fn access(&mut self, addr: i64) -> Result<&mut i64> {
+        debug!("[{}] accessing [{}]", self.pc, addr);
         let idx = usize::try_from(addr).map_err(|_| VMError::InvalidAddress{addr: addr})?;
-        if let Some(i) = self.memory.get(idx) {
-            debug!("[{}] reading [{}]={}", self.pc, addr, i);
-            Ok(*i)
-        } else {
-            Ok(0)
-        }
-    }
-    pub fn write_at(&mut self, addr: i64, val: i64) -> Result<()> {
-        debug!("[{}] writing [{}]={}", self.pc, addr, val);
-        let idx = usize::try_from(addr).map_err(|_| VMError::InvalidAddress{addr: addr})?;
-        if let Some(v) = self.memory.get_mut(idx) {
-            *v = val;
-        } else {
+        if self.memory.len() <= idx {
             self.memory.resize(idx+1, 0);
-            self.memory[idx] = val;
         }
-        Ok(())
+        Ok(&mut self.memory[idx])
     }
     fn decode_mode(opcode: i64, param: u32) -> Option<ParameterMode> {
         match (opcode / (10i64.pow(param+2))) % 10 {
@@ -206,20 +190,25 @@ impl Vm {
     }
     fn read_opcode(&mut self) -> Result<Opcode> {
         debug!("[{}] reading opcode",self.pc);
-        let i = self.read_at(self.pc)?;
+        let i = *self.access(self.pc)?;
         self.pc += 1;
         Ok(match i % 100 {
             1  => {
                 let mode1 = Self::decode_mode(i, 0).ok_or_else(|| VMError::InvalidOpcode { opcode: i, addr: self.pc-1 })?;
                 let mode2 = Self::decode_mode(i, 1).ok_or_else(|| VMError::InvalidOpcode { opcode: i, addr: self.pc-1 })?;
-                Opcode::Add(mode1, mode2)
+                let mode3 = Self::decode_mode(i, 2).ok_or_else(|| VMError::InvalidOpcode { opcode: i, addr: self.pc-1 })?;
+                Opcode::Add(mode1, mode2, mode3)
             },
             2  => {
                 let mode1 = Self::decode_mode(i, 0).ok_or_else(|| VMError::InvalidOpcode { opcode: i, addr: self.pc-1 })?;
                 let mode2 = Self::decode_mode(i, 1).ok_or_else(|| VMError::InvalidOpcode { opcode: i, addr: self.pc-1 })?;
-                Opcode::Mul(mode1, mode2)
+                let mode3 = Self::decode_mode(i, 2).ok_or_else(|| VMError::InvalidOpcode { opcode: i, addr: self.pc-1 })?;
+                Opcode::Mul(mode1, mode2, mode3)
             },
-            3  => Opcode::Input,
+            3  => {
+                let mode1 = Self::decode_mode(i, 0).ok_or_else(|| VMError::InvalidOpcode { opcode: i, addr: self.pc-1 })?;
+                Opcode::Input(mode1)
+            },
             4  => {
                 let mode1 = Self::decode_mode(i, 0).ok_or_else(|| VMError::InvalidOpcode { opcode: i, addr: self.pc-1 })?;
                 Opcode::Output(mode1)
@@ -237,12 +226,14 @@ impl Vm {
             7  => {
                 let mode1 = Self::decode_mode(i, 0).ok_or_else(|| VMError::InvalidOpcode { opcode: i, addr: self.pc-1 })?;
                 let mode2 = Self::decode_mode(i, 1).ok_or_else(|| VMError::InvalidOpcode { opcode: i, addr: self.pc-1 })?;
-                Opcode::LessThan(mode1, mode2)
+                let mode3 = Self::decode_mode(i, 2).ok_or_else(|| VMError::InvalidOpcode { opcode: i, addr: self.pc-1 })?;
+                Opcode::LessThan(mode1, mode2, mode3)
             },
             8  => {
                 let mode1 = Self::decode_mode(i, 0).ok_or_else(|| VMError::InvalidOpcode { opcode: i, addr: self.pc-1 })?;
                 let mode2 = Self::decode_mode(i, 1).ok_or_else(|| VMError::InvalidOpcode { opcode: i, addr: self.pc-1 })?;
-                Opcode::Equals(mode1, mode2)
+                let mode3 = Self::decode_mode(i, 2).ok_or_else(|| VMError::InvalidOpcode { opcode: i, addr: self.pc-1 })?;
+                Opcode::Equals(mode1, mode2, mode3)
             },
             9  => {
                 let mode1 = Self::decode_mode(i, 0).ok_or_else(|| VMError::InvalidOpcode { opcode: i, addr: self.pc-1 })?;
@@ -252,20 +243,23 @@ impl Vm {
             o  => return Err(VMError::InvalidOpcode{opcode: o, addr: self.pc-1}),
         })
     }
-    fn fetch_param(&mut self, mode: ParameterMode) -> Result<i64> {
+    fn fetch_param(&mut self, mode: ParameterMode) -> Result<&mut i64> {
         debug!("[{}] fetching {:?}", self.pc, mode);
-        let p = self.read_at(self.pc)?;
+        let pc = self.pc;
         self.pc += 1;
-        match mode {
+        let r = match mode {
             ParameterMode::Immediate => {
-                Ok(p)
+                self.access(pc)?
             },
             ParameterMode::Position => {
-                self.read_at(p)
+                let pos = *self.access(pc)?;
+                self.access(pos)?
             },
             ParameterMode::Relative => {
-                self.read_at(p).map(|a| a + self.rb)
+                let pos = *self.access(pc)?;
+                self.access(pos + self.rb)?
             },
-        }
+        };
+        Ok(r)
     }
 }
