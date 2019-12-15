@@ -2,7 +2,7 @@ use anyhow::Result;
 use anyhow::anyhow;
 
 
-fn parse() -> Result<Vec<i32>> {
+fn parse() -> Result<Vec<i64>> {
     std::fs::read_to_string("input")?
         .trim()
         .split(',')
@@ -10,18 +10,18 @@ fn parse() -> Result<Vec<i32>> {
         .collect()
 }
 
-fn part1(v: &[i32]) -> Result<impl std::fmt::Display> {
-    let mut vm = intcode::Vm::new(v.to_owned());
-    vm.write_at(1, 2)?;
-    vm.write_at(2, 12)?;
+fn part1(v: Vec<i64>) -> Result<impl std::fmt::Display> {
+    let mut vm = intcode::Vm::new(v);
+    vm.write_at(1, 12)?;
+    vm.write_at(2, 2)?;
     vm.run()?;
     Ok(vm.read_at(0)?)
 }
 
-fn part2(v: &[i32]) -> Result<impl std::fmt::Display> {
+fn part2(v: Vec<i64>) -> Result<impl std::fmt::Display> {
     for noun in 0..100 {
         for verb in 0..100 {
-            let mut vm = intcode::Vm::new(v.to_owned());
+            let mut vm = intcode::Vm::new(v.clone());
             vm.write_at(1, noun)?;
             vm.write_at(2, verb)?;
             vm.run()?;
@@ -35,9 +35,9 @@ fn part2(v: &[i32]) -> Result<impl std::fmt::Display> {
 
 fn main() -> Result<()> {
     let v = parse()?;
-    let p1 = part1(&v)?;
+    let p1 = part1(v.clone())?;
     println!("part 1: {}", p1);
-    let p2 = part2(&v)?;
+    let p2 = part2(v.clone())?;
     println!("part 2: {}", p2);
     Ok(())
 }
