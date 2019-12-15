@@ -26,6 +26,7 @@ type Result<T> = std::result::Result<T, VMError>;
 enum ParameterMode {
     Immediate,
     Position,
+    Relative,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -38,12 +39,14 @@ enum Opcode {
     JumpIfFalse(ParameterMode, ParameterMode),
     LessThan(ParameterMode, ParameterMode),
     Equals(ParameterMode, ParameterMode),
+    RelativeBaseOffset(ParameterMode),
     End,
 }
 
 pub struct Vm {
     memory: Vec<i32>,
     pc: i32,
+    rb: i32,
     state: VmState,
     inputs: VecDeque<i32>,
     outputs: VecDeque<i32>,
@@ -61,6 +64,7 @@ impl Vm {
         Vm {
             memory,
             pc: 0,
+            rb: 0,
             state: VmState::Running,
             inputs: VecDeque::new(),
             outputs: VecDeque::new(),
@@ -138,6 +142,10 @@ impl Vm {
                 let res = (arg1 == arg2) as i32;
                 self.write_at(arg3, res)?;
             },
+            Opcode::RelativeBaseOffset(par1) => {
+                let arg1 = self.fetch_param(par1)?;
+                self.rb += arg1;
+            },
             Opcode::End => {
                 self.state = VmState::Stopped;
             }
@@ -189,6 +197,7 @@ impl Vm {
         match (opcode / (10i32.pow(param+2))) % 10 {
             0 => { Some(ParameterMode::Position) },
             1 => { Some(ParameterMode::Immediate) },
+            2 => { Some(ParameterMode::Relative) },
             _ => { None },
         }
     }
@@ -232,6 +241,10 @@ impl Vm {
                 let mode2 = Self::decode_mode(i, 1).ok_or_else(|| VMError::InvalidOpcode { opcode: i, addr: self.pc-1 })?;
                 Opcode::Equals(mode1, mode2)
             },
+            9  => {
+                let mode1 = Self::decode_mode(i, 0).ok_or_else(|| VMError::InvalidOpcode { opcode: i, addr: self.pc-1 })?;
+                Opcode::RelativeBaseOffset(mode1)
+            },
             99 => Opcode::End,
             o  => return Err(VMError::InvalidOpcode{opcode: o, addr: self.pc-1}),
         })
@@ -246,6 +259,9 @@ impl Vm {
             },
             ParameterMode::Position => {
                 self.read_at(p)
+            },
+            ParameterMode::Relative => {
+                self.read_at(p).map(|a| a + self.rb)
             },
         }
     }
