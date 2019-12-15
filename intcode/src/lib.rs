@@ -7,12 +7,12 @@ use log::debug;
 pub enum VMError {
     #[error("The opcode `{opcode}` at address {addr} is invalid")]
     InvalidOpcode {
-        opcode: i32,
-        addr: i32,
+        opcode: i64,
+        addr: i64,
     },
     #[error("Invalid address `{addr}`")]
     InvalidAddress {
-        addr: i32,
+        addr: i64,
     },
     #[error("The VM is stopped")]
     Stopped,
@@ -44,12 +44,12 @@ enum Opcode {
 }
 
 pub struct Vm {
-    memory: Vec<i32>,
-    pc: i32,
-    rb: i32,
+    memory: Vec<i64>,
+    pc: i64,
+    rb: i64,
     state: VmState,
-    inputs: VecDeque<i32>,
-    outputs: VecDeque<i32>,
+    inputs: VecDeque<i64>,
+    outputs: VecDeque<i64>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -60,7 +60,7 @@ pub enum VmState {
 }
 
 impl Vm {
-    pub fn new(memory: Vec<i32>) -> Vm {
+    pub fn new(memory: Vec<i64>) -> Vm {
         Vm {
             memory,
             pc: 0,
@@ -132,14 +132,14 @@ impl Vm {
                 let arg1 = self.fetch_param(par1)?;
                 let arg2 = self.fetch_param(par2)?;
                 let arg3 = self.fetch_param(ParameterMode::Immediate)?;
-                let res = (arg1 < arg2) as i32;
+                let res = (arg1 < arg2) as i64;
                 self.write_at(arg3, res)?;
             },
             Opcode::Equals(par1, par2) => {
                 let arg1 = self.fetch_param(par1)?;
                 let arg2 = self.fetch_param(par2)?;
                 let arg3 = self.fetch_param(ParameterMode::Immediate)?;
-                let res = (arg1 == arg2) as i32;
+                let res = (arg1 == arg2) as i64;
                 self.write_at(arg3, res)?;
             },
             Opcode::RelativeBaseOffset(par1) => {
@@ -166,17 +166,17 @@ impl Vm {
         self.state != VmState::Stopped
     }
 
-    pub fn get_outputs(&mut self) -> impl Iterator<Item=i32> + '_ {
+    pub fn get_outputs(&mut self) -> impl Iterator<Item=i64> + '_ {
         self.outputs.drain(..)
     }
 
-    pub fn add_inputs(&mut self, inputs: &[i32]) {
+    pub fn add_inputs(&mut self, inputs: &[i64]) {
         for i in inputs {
             self.inputs.push_back(*i);
         }
     }
 
-    pub fn read_at(&self, addr: i32) -> Result<i32> {
+    pub fn read_at(&self, addr: i64) -> Result<i64> {
         let idx = usize::try_from(addr).map_err(|_| VMError::InvalidAddress{addr: addr})?;
         if let Some(i) = self.memory.get(idx) {
             debug!("[{}] reading [{}]={}", self.pc, addr, i);
@@ -186,15 +186,15 @@ impl Vm {
             Err(VMError::InvalidAddress{addr: addr})
         }
     }
-    pub fn write_at(&mut self, addr: i32, val: i32) -> Result<()> {
+    pub fn write_at(&mut self, addr: i64, val: i64) -> Result<()> {
         debug!("[{}] writing [{}]={}", self.pc, addr, val);
         let idx = usize::try_from(addr).map_err(|_| VMError::InvalidAddress{addr: addr})?;
         let v = self.memory.get_mut(idx).ok_or_else(|| VMError::InvalidAddress{addr: addr})?;
         *v = val;
         Ok(())
     }
-    fn decode_mode(opcode: i32, param: u32) -> Option<ParameterMode> {
-        match (opcode / (10i32.pow(param+2))) % 10 {
+    fn decode_mode(opcode: i64, param: u32) -> Option<ParameterMode> {
+        match (opcode / (10i64.pow(param+2))) % 10 {
             0 => { Some(ParameterMode::Position) },
             1 => { Some(ParameterMode::Immediate) },
             2 => { Some(ParameterMode::Relative) },
@@ -249,7 +249,7 @@ impl Vm {
             o  => return Err(VMError::InvalidOpcode{opcode: o, addr: self.pc-1}),
         })
     }
-    fn fetch_param(&mut self, mode: ParameterMode) -> Result<i32> {
+    fn fetch_param(&mut self, mode: ParameterMode) -> Result<i64> {
         debug!("[{}] fetching {:?}", self.pc, mode);
         let p = self.read_at(self.pc)?;
         self.pc += 1;
