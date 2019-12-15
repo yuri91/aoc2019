@@ -2,7 +2,7 @@ use anyhow::Result;
 use anyhow::anyhow;
 
 
-fn parse() -> Result<Vec<i32>> {
+fn parse() -> Result<Vec<i64>> {
     std::fs::read_to_string("input")?
         .trim()
         .split(',')
@@ -10,8 +10,8 @@ fn parse() -> Result<Vec<i32>> {
         .collect()
 }
 
-fn part1(v: &[i32]) -> Result<impl std::fmt::Display> {
-    let mut vm = intcode::Vm::new(v.to_owned());
+fn part1(v: Vec<i64>) -> Result<impl std::fmt::Display> {
+    let mut vm = intcode::Vm::new(v);
     vm.add_inputs(&[1]);
     vm.run()?;
     let mut outs: Vec<_> = vm.get_outputs().collect();
@@ -24,8 +24,8 @@ fn part1(v: &[i32]) -> Result<impl std::fmt::Display> {
     Ok(last)
 }
 
-fn part2(v: &[i32]) -> Result<impl std::fmt::Display> {
-    let mut vm = intcode::Vm::new(v.to_owned());
+fn part2(v: Vec<i64>) -> Result<impl std::fmt::Display> {
+    let mut vm = intcode::Vm::new(v);
     vm.add_inputs(&[5]);
     vm.run()?;
     let mut outs: Vec<_> = vm.get_outputs().collect();
@@ -38,9 +38,9 @@ fn part2(v: &[i32]) -> Result<impl std::fmt::Display> {
 
 fn main() -> Result<()> {
     let v = parse()?;
-    let p1 = part1(&v)?;
+    let p1 = part1(v.clone())?;
     println!("part 1: {}", p1);
-    let p2 = part2(&v)?;
+    let p2 = part2(v)?;
     println!("part 2: {}", p2);
     Ok(())
 }
