@@ -182,15 +182,18 @@ impl Vm {
             debug!("[{}] reading [{}]={}", self.pc, addr, i);
             Ok(*i)
         } else {
-            debug!("[{}] reading [{}]=invalid", self.pc, addr);
-            Err(VMError::InvalidAddress{addr: addr})
+            Ok(0)
         }
     }
     pub fn write_at(&mut self, addr: i64, val: i64) -> Result<()> {
         debug!("[{}] writing [{}]={}", self.pc, addr, val);
         let idx = usize::try_from(addr).map_err(|_| VMError::InvalidAddress{addr: addr})?;
-        let v = self.memory.get_mut(idx).ok_or_else(|| VMError::InvalidAddress{addr: addr})?;
-        *v = val;
+        if let Some(v) = self.memory.get_mut(idx) {
+            *v = val;
+        } else {
+            self.memory.resize(idx+1, 0);
+            self.memory[idx] = val;
+        }
         Ok(())
     }
     fn decode_mode(opcode: i64, param: u32) -> Option<ParameterMode> {
