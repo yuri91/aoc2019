@@ -157,6 +157,15 @@ impl Vm {
             }
         }
     }
+    pub fn read_at(&mut self, addr: i64) -> Result<i64> {
+        let a = self.access(addr)?;
+        Ok(*a)
+    }
+    pub fn write_at(&mut self, addr: i64, val: i64) -> Result<()> {
+        let a = self.access(addr)?;
+        *a = val;
+        Ok(())
+    }
 
     pub fn is_running(&self) -> bool {
         self.state != VmState::Stopped
