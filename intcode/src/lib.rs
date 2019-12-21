@@ -169,6 +169,18 @@ impl Vm {
             }
         }
     }
+    pub fn run_until_output_with_input<F: FnMut() -> i64>(&mut self, mut f: F) -> Result<Option<i64>> {
+        loop {
+            if let Some(o) = self.outputs.pop_front() {
+                return Ok(Some(o));
+            }
+            match self.step()? {
+                VmState::Running => {},
+                VmState::Stopped => {return Ok(None);},
+                VmState::WaitingForInput => {self.add_inputs(&[f()])},
+            }
+        }
+    }
     pub fn read_at(&mut self, addr: i64) -> Result<i64> {
         let a = self.access(addr)?;
         Ok(*a)
